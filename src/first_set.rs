@@ -8,7 +8,7 @@ where
 {
     //First集合
     let mut first_sets = BTreeMap::new();
-    //すべてのAlphabet
+    //すべてのSymbol
     let mut alphabets = BTreeSet::new();
     for rule in &grammer.rules {
         alphabets.insert(Symbol::NonTerm(rule.left.clone()));

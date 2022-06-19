@@ -22,7 +22,7 @@ where
     T: Ord + Eq + Clone + Debug,
 {
     pub left: NT,
-    pub right: Vec<DotAndAlphabet<NT, T>>,
+    pub right: Vec<DotOrSymbol<NT, T>>,
 }
 
 impl<NT, T> std::fmt::Display for LR0Item<NT, T>
@@ -46,12 +46,12 @@ where
     T: Ord + Eq + Clone,
 {
     pub left: NT,
-    pub right: Vec<DotAndAlphabet<NT, T>>,
+    pub right: Vec<DotOrSymbol<NT, T>>,
     pub lookahead: T,
 }
 
 #[derive(Ord, PartialOrd, PartialEq, Eq, Clone, Debug)]
-pub enum DotAndAlphabet<NT, T>
+pub enum DotOrSymbol<NT, T>
 where
     NT: Ord + Clone + Eq,
     T: Ord + Clone + Eq,
@@ -60,7 +60,7 @@ where
     Symbol(Symbol<NT, T>),
 }
 
-impl<NT, T> std::fmt::Display for DotAndAlphabet<NT, T>
+impl<NT, T> std::fmt::Display for DotOrSymbol<NT, T>
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
@@ -108,14 +108,14 @@ where
     for rule in &grammer.rules {
         //ドット挿入位置
         let positions = 0..=rule.right.len();
-        let item: Vec<DotAndAlphabet<NT, T>> = rule
+        let item: Vec<DotOrSymbol<NT, T>> = rule
             .right
             .iter()
-            .map(|Symbol| DotAndAlphabet::Symbol(Symbol.clone()))
+            .map(|Symbol| DotOrSymbol::Symbol(Symbol.clone()))
             .collect();
         for position in positions {
             let mut item = item.clone();
-            item.insert(position, DotAndAlphabet::Dot);
+            item.insert(position, DotOrSymbol::Dot);
             let lr0_item = LR0Item {
                 left: rule.left.clone(),
                 right: item,
@@ -149,7 +149,7 @@ where
     let induction_terms: BTreeSet<LR0Item<NT, T>> = lr0_items
         .iter()
         .filter(|lr0_item| {
-            if let Some(DotAndAlphabet::Dot) = lr0_item.right.get(0) {
+            if let Some(DotOrSymbol::Dot) = lr0_item.right.get(0) {
                 true
             } else {
                 false
@@ -168,13 +168,13 @@ where
                     item.right
                         .iter()
                         .skip_while(|dot_or_alphabet| match dot_or_alphabet {
-                            DotAndAlphabet::Dot => false,
-                            DotAndAlphabet::Symbol(_) => true,
+                            DotOrSymbol::Dot => false,
+                            DotOrSymbol::Symbol(_) => true,
                         });
                 finder.next();
 
                 //非終端記号なので要求リストに入れる.
-                if let Some(DotAndAlphabet::Symbol(Symbol::NonTerm(nt))) = finder.next() {
+                if let Some(DotOrSymbol::Symbol(Symbol::NonTerm(nt))) = finder.next() {
                     //すでに要求し終わっているならば入れない
                     if !finished_nonterms.contains(nt) {
                         requires.insert(nt.clone());
@@ -219,11 +219,11 @@ where
             .right
             .iter()
             .skip_while(|dot_or_alphabet| match dot_or_alphabet {
-                DotAndAlphabet::Dot => false,
-                DotAndAlphabet::Symbol(_) => true,
+                DotOrSymbol::Dot => false,
+                DotOrSymbol::Symbol(_) => true,
             });
         finder.next();
-        if let Some(DotAndAlphabet::Symbol(ap)) = finder.next() {
+        if let Some(DotOrSymbol::Symbol(ap)) = finder.next() {
             ap.clone() == Symbol
         } else {
             false
@@ -237,7 +237,7 @@ where
                 .iter()
                 .enumerate()
                 .skip_while(|dot_or_alphabet| match dot_or_alphabet.1 {
-                    DotAndAlphabet::Dot => false,
+                    DotOrSymbol::Dot => false,
                     _ => true,
                 })
                 .next()
@@ -357,7 +357,7 @@ mod test {
     use crate::bnf::{Expr, Grammer, Symbol};
     use crate::item_set::{
         compile_canonical_automaton_to_dot, generate_canonical_automaton, generate_goto_set,
-        generate_lr0_item_closure, DotAndAlphabet, LR0Item,
+        generate_lr0_item_closure, DotOrSymbol, LR0Item,
     };
     use NonTerm::{E, S, T};
     use Symbol::NonTerm as NT;
@@ -445,10 +445,10 @@ mod test {
         let closure_target = LR0Item {
             left: NT::E,
             right: vec![
-                DotAndAlphabet::Symbol(Symbol::NonTerm(NT::E)),
-                DotAndAlphabet::Symbol(Symbol::Term('+')),
-                DotAndAlphabet::Dot,
-                DotAndAlphabet::Symbol(Symbol::NonTerm(NT::T)),
+                DotOrSymbol::Symbol(Symbol::NonTerm(NT::E)),
+                DotOrSymbol::Symbol(Symbol::Term('+')),
+                DotOrSymbol::Dot,
+                DotOrSymbol::Symbol(Symbol::NonTerm(NT::T)),
             ],
         };
         let lr0_items = generate_lr0_item_set(&grammer);
@@ -508,10 +508,10 @@ mod test {
             &[LR0Item {
                 left: NT::T,
                 right: vec![
-                    DotAndAlphabet::Symbol(Symbol::NonTerm(NT::T)),
-                    DotAndAlphabet::Dot,
-                    DotAndAlphabet::Symbol(Symbol::Term('*')),
-                    DotAndAlphabet::Symbol(Symbol::NonTerm(NT::F)),
+                    DotOrSymbol::Symbol(Symbol::NonTerm(NT::T)),
+                    DotOrSymbol::Dot,
+                    DotOrSymbol::Symbol(Symbol::Term('*')),
+                    DotOrSymbol::Symbol(Symbol::NonTerm(NT::F)),
                 ],
             }],
             Symbol::Term('*'),
