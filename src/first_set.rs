@@ -9,15 +9,15 @@ where
     //First集合
     let mut first_sets = BTreeMap::new();
     //すべてのSymbol
-    let mut alphabets = BTreeSet::new();
+    let mut symbols = BTreeSet::new();
     for rule in &grammer.rules {
-        alphabets.insert(Symbol::NonTerm(rule.left.clone()));
-        for Symbol in &rule.right {
-            alphabets.insert(Symbol.clone());
-        }
+        symbols.insert(Symbol::NonTerm(rule.left.clone()));
+        rule.right.iter().for_each(|symbol| {
+            symbols.insert(symbol.clone());
+        });
     }
     //First集合の初期化
-    for a in &alphabets {
+    for a in &symbols {
         let initial_set = match a {
             Symbol::NonTerm(_) => BTreeSet::new(),
             Symbol::Term(x) => std::iter::once(x).cloned().collect(),
@@ -36,8 +36,8 @@ where
             let first_non_null = rule
                 .right
                 .iter()
-                .skip_while(|Symbol| {
-                    match Symbol {
+                .skip_while(|symbol| {
+                    match symbol {
                         //終端記号なのでヌルになることはない
                         Symbol::Term(_) => false,
                         //ヌル集合にないならばこれ目当てのものになる.
@@ -67,9 +67,9 @@ where
                     let super_ = first_sets
                         .get_mut(&Symbol::NonTerm(constraint.0.clone()))
                         .unwrap();
-                    for Symbol in sub.iter() {
-                        super_.insert(Symbol.clone());
-                    }
+                    sub.iter().for_each(|symbol| {
+                        super_.insert(symbol.clone());
+                    });
                 }
             }
             changed = snap_shot != first_sets;
