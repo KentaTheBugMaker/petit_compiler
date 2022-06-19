@@ -25,12 +25,12 @@ where
                     .iter()
                     .map(|tk| {
                         match tk {
-                            crate::bnf::Alphabet::Term(_) => {
+                            crate::bnf::Symbol::Term(_) => {
                                 //終端記号が含まれるのでヌルになりえない
                                 //従ってfalse
                                 false
                             }
-                            crate::bnf::Alphabet::NonTerm(nt) => {
+                            crate::bnf::Symbol::NonTerm(nt) => {
                                 //ヌル集合に含まれている
                                 set.contains(nt)
                             }
@@ -52,7 +52,7 @@ where
 mod test {
 
     use super::generate_null_set;
-    use crate::bnf::{Alphabet, Expr, Grammer};
+    use crate::bnf::{Expr, Grammer, Symbol};
     use std::collections::BTreeSet;
 
     #[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq)]
@@ -67,11 +67,11 @@ mod test {
             rules: vec![
                 Expr {
                     left: NonTerm::X,
-                    right: vec![Alphabet::NonTerm(NonTerm::Y), Alphabet::Term(0)],
+                    right: vec![Symbol::NonTerm(NonTerm::Y), Symbol::Term(0)],
                 },
                 Expr {
                     left: NonTerm::Y,
-                    right: vec![Alphabet::Term(1)],
+                    right: vec![Symbol::Term(1)],
                 },
                 Expr {
                     left: NonTerm::Y,

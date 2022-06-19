@@ -1,7 +1,7 @@
-use crate::bnf::{Alphabet, Grammer};
+use crate::bnf::{Grammer, Symbol};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
-pub fn generate_first_set<NT, T>(grammer: &Grammer<NT, T>) -> BTreeMap<Alphabet<NT, T>, BTreeSet<T>>
+pub fn generate_first_set<NT, T>(grammer: &Grammer<NT, T>) -> BTreeMap<Symbol<NT, T>, BTreeSet<T>>
 where
     T: Ord + Eq + Clone + Debug,
     NT: Ord + Eq + Clone + Debug,
@@ -11,16 +11,16 @@ where
     //すべてのAlphabet
     let mut alphabets = BTreeSet::new();
     for rule in &grammer.rules {
-        alphabets.insert(Alphabet::NonTerm(rule.left.clone()));
-        for alphabet in &rule.right {
-            alphabets.insert(alphabet.clone());
+        alphabets.insert(Symbol::NonTerm(rule.left.clone()));
+        for Symbol in &rule.right {
+            alphabets.insert(Symbol.clone());
         }
     }
     //First集合の初期化
     for a in &alphabets {
         let initial_set = match a {
-            Alphabet::NonTerm(_) => BTreeSet::new(),
-            Alphabet::Term(x) => std::iter::once(x).cloned().collect(),
+            Symbol::NonTerm(_) => BTreeSet::new(),
+            Symbol::Term(x) => std::iter::once(x).cloned().collect(),
         };
         first_sets.insert(a.clone(), initial_set);
     }
@@ -36,18 +36,18 @@ where
             let first_non_null = rule
                 .right
                 .iter()
-                .skip_while(|alphabet| {
-                    match alphabet {
+                .skip_while(|Symbol| {
+                    match Symbol {
                         //終端記号なのでヌルになることはない
-                        Alphabet::Term(_) => false,
+                        Symbol::Term(_) => false,
                         //ヌル集合にないならばこれ目当てのものになる.
-                        Alphabet::NonTerm(nt) => nullable_set.contains(nt),
+                        Symbol::NonTerm(nt) => nullable_set.contains(nt),
                     }
                 })
                 .next();
 
             if let Some(sub) = first_non_null {
-                if Alphabet::NonTerm(sup.clone()) != sub.clone() {
+                if Symbol::NonTerm(sup.clone()) != sub.clone() {
                     println!("{:?} <-{:?}", sup, sub);
                     constraints.push((sup, sub));
                 }
@@ -65,10 +65,10 @@ where
 
                 if let Some(sub) = sub {
                     let super_ = first_sets
-                        .get_mut(&Alphabet::NonTerm(constraint.0.clone()))
+                        .get_mut(&Symbol::NonTerm(constraint.0.clone()))
                         .unwrap();
-                    for alphabet in sub.iter() {
-                        super_.insert(alphabet.clone());
+                    for Symbol in sub.iter() {
+                        super_.insert(Symbol.clone());
                     }
                 }
             }
@@ -81,10 +81,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::bnf::{Alphabet, Expr, Grammer};
-    use Alphabet::NonTerm as NT;
-    use Alphabet::Term;
+    use crate::bnf::{Expr, Grammer, Symbol};
     use NonTerm::{E, S, T};
+    use Symbol::NonTerm as NT;
+    use Symbol::Term;
 
     use super::generate_first_set;
     #[test]

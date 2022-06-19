@@ -13,11 +13,11 @@ where
     NT: Ord + Eq + Clone,
 {
     pub left: NT,
-    pub right: Vec<Alphabet<NT, T>>,
+    pub right: Vec<Symbol<NT, T>>,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq)]
-pub enum Alphabet<NT, T>
+pub enum Symbol<NT, T>
 where
     T: Ord + Eq + Clone,
     NT: Ord + Eq + Clone,
@@ -25,7 +25,7 @@ where
     Term(T),
     NonTerm(NT),
 }
-impl<NT, T> Debug for Alphabet<NT, T>
+impl<NT, T> Debug for Symbol<NT, T>
 where
     T: Ord + Eq + Clone + Debug,
     NT: Ord + Eq + Clone + Debug,

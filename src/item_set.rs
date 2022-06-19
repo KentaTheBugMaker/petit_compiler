@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
 };
 
-use crate::bnf::{Alphabet, Grammer};
+use crate::bnf::{Grammer, Symbol};
 
 #[derive(Debug)]
 pub struct ItemClosure0<NT, T>(pub BTreeSet<LR0Item<NT, T>>)
@@ -57,7 +57,7 @@ where
     T: Ord + Clone + Eq,
 {
     Dot,
-    Symbol(Alphabet<NT, T>),
+    Symbol(Symbol<NT, T>),
 }
 
 impl<NT, T> std::fmt::Display for DotAndAlphabet<NT, T>
@@ -69,8 +69,8 @@ where
         match self {
             Self::Dot => write!(f, "・"),
             Self::Symbol(arg0) => match arg0 {
-                Alphabet::Term(t) => write!(f, "{:?}", t),
-                Alphabet::NonTerm(nt) => write!(f, "{:?}", nt),
+                Symbol::Term(t) => write!(f, "{:?}", t),
+                Symbol::NonTerm(nt) => write!(f, "{:?}", nt),
             },
         }
     }
@@ -111,7 +111,7 @@ where
         let item: Vec<DotAndAlphabet<NT, T>> = rule
             .right
             .iter()
-            .map(|alphabet| DotAndAlphabet::Symbol(alphabet.clone()))
+            .map(|Symbol| DotAndAlphabet::Symbol(Symbol.clone()))
             .collect();
         for position in positions {
             let mut item = item.clone();
@@ -174,7 +174,7 @@ where
                 finder.next();
 
                 //非終端記号なので要求リストに入れる.
-                if let Some(DotAndAlphabet::Symbol(Alphabet::NonTerm(nt))) = finder.next() {
+                if let Some(DotAndAlphabet::Symbol(Symbol::NonTerm(nt))) = finder.next() {
                     //すでに要求し終わっているならば入れない
                     if !finished_nonterms.contains(nt) {
                         requires.insert(nt.clone());
@@ -206,7 +206,7 @@ where
 pub fn generate_goto_set<NT, T>(
     grammer: &Grammer<NT, T>,
     lr0_set: &[LR0Item<NT, T>],
-    alphabet: Alphabet<NT, T>,
+    Symbol: Symbol<NT, T>,
 ) -> Vec<LR0Item<NT, T>>
 where
     NT: Ord + Eq + Clone + Debug,
@@ -224,7 +224,7 @@ where
             });
         finder.next();
         if let Some(DotAndAlphabet::Symbol(ap)) = finder.next() {
-            ap.clone() == alphabet
+            ap.clone() == Symbol
         } else {
             false
         }
@@ -265,10 +265,10 @@ where
 pub fn generate_canonical_automaton<NT, T>(
     grammer: &Grammer<NT, T>,
     start_symbol: NT,
-    alphabets: &[Alphabet<NT, T>],
+    alphabets: &[Symbol<NT, T>],
 ) -> (
     Vec<Vec<LR0Item<NT, T>>>,
-    BTreeMap<(Vec<LR0Item<NT, T>>, Alphabet<NT, T>), Vec<LR0Item<NT, T>>>,
+    BTreeMap<(Vec<LR0Item<NT, T>>, Symbol<NT, T>), Vec<LR0Item<NT, T>>>,
 )
 where
     NT: Ord + Clone + Eq + Debug,
@@ -285,15 +285,15 @@ where
         while !x.is_empty() {
             let i = x.remove(0);
             y.push(i.clone());
-            for alphabet in alphabets {
-                println!("I' = Goto({:?},{:?})", i, alphabet);
-                let i_dash = generate_goto_set(grammer, &i, alphabet.clone());
+            for Symbol in alphabets {
+                println!("I' = Goto({:?},{:?})", i, Symbol);
+                let i_dash = generate_goto_set(grammer, &i, Symbol.clone());
                 println!("I' = {:?}", i_dash);
                 if !i_dash.is_empty() {
                     if !y.contains(&i_dash) & !x.contains(&i_dash) {
                         x.push(i_dash.clone());
                     }
-                    delta.insert((i.clone(), alphabet.clone()), i_dash);
+                    delta.insert((i.clone(), Symbol.clone()), i_dash);
                 }
             }
         }
@@ -306,7 +306,7 @@ where
 pub fn compile_canonical_automaton_to_dot<NT, T>(
     automaton: (
         &[Vec<LR0Item<NT, T>>],
-        &BTreeMap<(Vec<LR0Item<NT, T>>, Alphabet<NT, T>), Vec<LR0Item<NT, T>>>,
+        &BTreeMap<(Vec<LR0Item<NT, T>>, Symbol<NT, T>), Vec<LR0Item<NT, T>>>,
     ),
     automaton_name: &str,
 ) -> String
@@ -337,10 +337,10 @@ where
                     shift.0.unwrap(),
                     shift.2.unwrap(),
                     match shift.1 {
-                        Alphabet::Term(t) => {
+                        Symbol::Term(t) => {
                             format!("label=\"{:?}\", style=solid", t)
                         }
-                        Alphabet::NonTerm(nt) => {
+                        Symbol::NonTerm(nt) => {
                             format!("label=\"{:?}\", style=bold", nt)
                         }
                     },
@@ -354,14 +354,14 @@ where
 #[cfg(test)]
 mod test {
     use super::generate_lr0_item_set;
-    use crate::bnf::{Alphabet, Expr, Grammer};
+    use crate::bnf::{Expr, Grammer, Symbol};
     use crate::item_set::{
         compile_canonical_automaton_to_dot, generate_canonical_automaton, generate_goto_set,
         generate_lr0_item_closure, DotAndAlphabet, LR0Item,
     };
-    use Alphabet::NonTerm as NT;
-    use Alphabet::Term;
     use NonTerm::{E, S, T};
+    use Symbol::NonTerm as NT;
+    use Symbol::Term;
     #[test]
     fn test_generate_lr0_item_set() {
         let grammer = Grammer {
@@ -411,48 +411,44 @@ mod test {
                 Expr {
                     left: NT::E,
                     right: vec![
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term('+'),
-                        Alphabet::NonTerm(NT::T),
+                        Symbol::NonTerm(NT::E),
+                        Symbol::Term('+'),
+                        Symbol::NonTerm(NT::T),
                     ],
                 },
                 Expr {
                     left: NT::E,
-                    right: vec![Alphabet::NonTerm(NT::T)],
+                    right: vec![Symbol::NonTerm(NT::T)],
                 },
                 Expr {
                     left: NT::T,
                     right: vec![
-                        Alphabet::NonTerm(NT::T),
-                        Alphabet::Term('*'),
-                        Alphabet::NonTerm(NT::F),
+                        Symbol::NonTerm(NT::T),
+                        Symbol::Term('*'),
+                        Symbol::NonTerm(NT::F),
                     ],
                 },
                 Expr {
                     left: NT::T,
-                    right: vec![Alphabet::NonTerm(NT::F)],
+                    right: vec![Symbol::NonTerm(NT::F)],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![
-                        Alphabet::Term('('),
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term(')'),
-                    ],
+                    right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![Alphabet::Term('i')],
+                    right: vec![Symbol::Term('i')],
                 },
             ],
         };
         let closure_target = LR0Item {
             left: NT::E,
             right: vec![
-                DotAndAlphabet::Symbol(Alphabet::NonTerm(NT::E)),
-                DotAndAlphabet::Symbol(Alphabet::Term('+')),
+                DotAndAlphabet::Symbol(Symbol::NonTerm(NT::E)),
+                DotAndAlphabet::Symbol(Symbol::Term('+')),
                 DotAndAlphabet::Dot,
-                DotAndAlphabet::Symbol(Alphabet::NonTerm(NT::T)),
+                DotAndAlphabet::Symbol(Symbol::NonTerm(NT::T)),
             ],
         };
         let lr0_items = generate_lr0_item_set(&grammer);
@@ -475,38 +471,34 @@ mod test {
                 Expr {
                     left: NT::E,
                     right: vec![
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term('+'),
-                        Alphabet::NonTerm(NT::T),
+                        Symbol::NonTerm(NT::E),
+                        Symbol::Term('+'),
+                        Symbol::NonTerm(NT::T),
                     ],
                 },
                 Expr {
                     left: NT::E,
-                    right: vec![Alphabet::NonTerm(NT::T)],
+                    right: vec![Symbol::NonTerm(NT::T)],
                 },
                 Expr {
                     left: NT::T,
                     right: vec![
-                        Alphabet::NonTerm(NT::T),
-                        Alphabet::Term('*'),
-                        Alphabet::NonTerm(NT::F),
+                        Symbol::NonTerm(NT::T),
+                        Symbol::Term('*'),
+                        Symbol::NonTerm(NT::F),
                     ],
                 },
                 Expr {
                     left: NT::T,
-                    right: vec![Alphabet::NonTerm(NT::F)],
+                    right: vec![Symbol::NonTerm(NT::F)],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![
-                        Alphabet::Term('('),
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term(')'),
-                    ],
+                    right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![Alphabet::Term('i')],
+                    right: vec![Symbol::Term('i')],
                 },
             ],
         };
@@ -516,13 +508,13 @@ mod test {
             &[LR0Item {
                 left: NT::T,
                 right: vec![
-                    DotAndAlphabet::Symbol(Alphabet::NonTerm(NT::T)),
+                    DotAndAlphabet::Symbol(Symbol::NonTerm(NT::T)),
                     DotAndAlphabet::Dot,
-                    DotAndAlphabet::Symbol(Alphabet::Term('*')),
-                    DotAndAlphabet::Symbol(Alphabet::NonTerm(NT::F)),
+                    DotAndAlphabet::Symbol(Symbol::Term('*')),
+                    DotAndAlphabet::Symbol(Symbol::NonTerm(NT::F)),
                 ],
             }],
-            Alphabet::Term('*'),
+            Symbol::Term('*'),
         );
         for item in goto_set {
             println!("{}", item);
@@ -542,43 +534,39 @@ mod test {
             rules: vec![
                 Expr {
                     left: NT::S,
-                    right: vec![Alphabet::NonTerm(NT::E)],
+                    right: vec![Symbol::NonTerm(NT::E)],
                 },
                 Expr {
                     left: NT::E,
                     right: vec![
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term('+'),
-                        Alphabet::NonTerm(NT::T),
+                        Symbol::NonTerm(NT::E),
+                        Symbol::Term('+'),
+                        Symbol::NonTerm(NT::T),
                     ],
                 },
                 Expr {
                     left: NT::E,
-                    right: vec![Alphabet::NonTerm(NT::T)],
+                    right: vec![Symbol::NonTerm(NT::T)],
                 },
                 Expr {
                     left: NT::T,
                     right: vec![
-                        Alphabet::NonTerm(NT::T),
-                        Alphabet::Term('*'),
-                        Alphabet::NonTerm(NT::F),
+                        Symbol::NonTerm(NT::T),
+                        Symbol::Term('*'),
+                        Symbol::NonTerm(NT::F),
                     ],
                 },
                 Expr {
                     left: NT::T,
-                    right: vec![Alphabet::NonTerm(NT::F)],
+                    right: vec![Symbol::NonTerm(NT::F)],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![
-                        Alphabet::Term('('),
-                        Alphabet::NonTerm(NT::E),
-                        Alphabet::Term(')'),
-                    ],
+                    right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
                 },
                 Expr {
                     left: NT::F,
-                    right: vec![Alphabet::Term('i')],
+                    right: vec![Symbol::Term('i')],
                 },
             ],
         };
@@ -587,15 +575,15 @@ mod test {
             &grammer,
             NT::S,
             &[
-                Alphabet::NonTerm(NT::S),
-                Alphabet::NonTerm(NT::E),
-                Alphabet::NonTerm(NT::T),
-                Alphabet::NonTerm(NT::F),
-                Alphabet::Term('i'),
-                Alphabet::Term('('),
-                Alphabet::Term(')'),
-                Alphabet::Term('+'),
-                Alphabet::Term('*'),
+                Symbol::NonTerm(NT::S),
+                Symbol::NonTerm(NT::E),
+                Symbol::NonTerm(NT::T),
+                Symbol::NonTerm(NT::F),
+                Symbol::Term('i'),
+                Symbol::Term('('),
+                Symbol::Term(')'),
+                Symbol::Term('+'),
+                Symbol::Term('*'),
             ],
         );
         let canonical_set = canonical_automaton.0.clone();
