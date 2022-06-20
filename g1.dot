@@ -1,4 +1,4 @@
- digraph G1 {
+digraph G1 {
 I0 -> I5 [label="'('", style=solid];
 I0 -> I4 [label="'i'", style=solid];
 I0 -> I1 [label="E", style=bold];

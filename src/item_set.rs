@@ -22,7 +22,8 @@ where
     T: Ord + Eq + Clone + Debug,
 {
     pub left: NT,
-    pub right: Vec<DotOrSymbol<NT, T>>,
+    pub right: Vec<Symbol<NT, T>>,
+    pub dot_pos: usize,
 }
 
 impl<NT, T> std::fmt::Display for LR0Item<NT, T>
@@ -32,10 +33,26 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} -> ", self.left).ok();
-        for dot_or_symbol in &self.right {
-            write!(f, "{}", dot_or_symbol).ok();
-        }
-        write!(f, "")
+        let mut symbols: Vec<String> = self
+            .right
+            .iter()
+            .map(|symbol| {
+                format!(
+                    "{}",
+                    match symbol {
+                        Symbol::Term(t) => {
+                            format!("{:?}", t)
+                        }
+                        Symbol::NonTerm(nt) => {
+                            format!("{:?}", nt)
+                        }
+                    }
+                )
+            })
+            .collect();
+        symbols.insert(self.dot_pos, "・".to_owned());
+        let right = symbols.concat();
+        write!(f, "{}", right)
     }
 }
 
@@ -46,10 +63,26 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} -> ", self.left).ok();
-        for dot_or_symbol in &self.right {
-            write!(f, "{}", dot_or_symbol).ok();
-        }
-        write!(f, "")
+        let mut symbols: Vec<String> = self
+            .right
+            .iter()
+            .map(|symbol| {
+                format!(
+                    "{}",
+                    match symbol {
+                        Symbol::Term(t) => {
+                            format!("{:?}", t)
+                        }
+                        Symbol::NonTerm(nt) => {
+                            format!("{:?}", nt)
+                        }
+                    }
+                )
+            })
+            .collect();
+        symbols.insert(self.dot_pos, "・".to_owned());
+        let right = symbols.concat();
+        write!(f, "{}", right)
     }
 }
 
@@ -60,34 +93,9 @@ where
     T: Ord + Eq + Clone,
 {
     pub left: NT,
-    pub right: Vec<DotOrSymbol<NT, T>>,
+    pub right: Vec<Symbol<NT, T>>,
     pub lookahead: T,
-}
-
-#[derive(Ord, PartialOrd, PartialEq, Eq, Clone, Debug)]
-pub enum DotOrSymbol<NT, T>
-where
-    NT: Ord + Clone + Eq,
-    T: Ord + Clone + Eq,
-{
-    Dot,
-    Symbol(Symbol<NT, T>),
-}
-
-impl<NT, T> std::fmt::Display for DotOrSymbol<NT, T>
-where
-    NT: Ord + Eq + Clone + Debug,
-    T: Ord + Eq + Clone + Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Dot => write!(f, "・"),
-            Self::Symbol(arg0) => match arg0 {
-                Symbol::Term(t) => write!(f, "{:?}", t),
-                Symbol::NonTerm(nt) => write!(f, "{:?}", nt),
-            },
-        }
-    }
+    pub dot_pos: usize,
 }
 
 impl<NT, T> Into<LR1Item<NT, T>> for (LR0Item<NT, T>, T)
@@ -101,6 +109,7 @@ where
             left: lr0.left,
             right: lr0.right,
             lookahead: la,
+            dot_pos: lr0.dot_pos,
         }
     }
 }
@@ -122,17 +131,12 @@ where
     for rule in &grammer.rules {
         //ドット挿入位置
         let positions = 0..=rule.right.len();
-        let item: Vec<DotOrSymbol<NT, T>> = rule
-            .right
-            .iter()
-            .map(|symbol| DotOrSymbol::Symbol(symbol.clone()))
-            .collect();
+
         for position in positions {
-            let mut item = item.clone();
-            item.insert(position, DotOrSymbol::Dot);
             let lr0_item = LR0Item {
                 left: rule.left.clone(),
-                right: item,
+                right: rule.right.clone(),
+                dot_pos: position,
             };
             set.push(lr0_item);
         }
@@ -162,13 +166,7 @@ where
     let mut i_dash = i.to_vec();
     let induction_terms: BTreeSet<LR0Item<NT, T>> = lr0_items
         .iter()
-        .filter(|lr0_item| {
-            if let Some(DotOrSymbol::Dot) = lr0_item.right.get(0) {
-                true
-            } else {
-                false
-            }
-        })
+        .filter(|lr0_item| lr0_item.dot_pos == 0)
         .cloned()
         .collect();
     let mut changed = true;
@@ -178,17 +176,9 @@ where
         for item in i_dash.iter() {
             if !finished_set.contains(item) {
                 //まずは.の後ろが非終端記号か判定する.
-                let mut finder =
-                    item.right
-                        .iter()
-                        .skip_while(|dot_or_alphabet| match dot_or_alphabet {
-                            DotOrSymbol::Dot => false,
-                            DotOrSymbol::Symbol(_) => true,
-                        });
-                finder.next();
 
                 //非終端記号なので要求リストに入れる.
-                if let Some(DotOrSymbol::Symbol(Symbol::NonTerm(nt))) = finder.next() {
+                if let Some(Symbol::NonTerm(nt)) = item.right.get(item.dot_pos) {
                     //すでに要求し終わっているならば入れない
                     if !finished_nonterms.contains(nt) {
                         requires.insert(nt.clone());
@@ -216,26 +206,15 @@ where
     i_dash
 }
 
-//
-fn test_symbol_after_dot<NT, T>(
-    dot_or_symbols: &[DotOrSymbol<NT, T>],
-    symbol: &Symbol<NT, T>,
-) -> bool
+//ドットの後にシンボルがあるか調べる.
+fn test_symbol_after_dot<NT, T>(item: &LR0Item<NT, T>, symbol: &Symbol<NT, T>) -> bool
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
 {
-    let mut finder = dot_or_symbols
-        .iter()
-        .skip_while(|dot_or_alphabet| match dot_or_alphabet {
-            DotOrSymbol::Dot => false,
-            DotOrSymbol::Symbol(_) => true,
-        });
-    finder.next();
-    if let Some(DotOrSymbol::Symbol(ap)) = finder.next() {
-        ap == symbol
-    } else {
-        false
+    match item.right.get(item.dot_pos) {
+        Some(sym) if sym == symbol => true,
+        _ => (false),
     }
 }
 
@@ -253,29 +232,20 @@ where
 {
     let full_set = generate_lr0_item_set(grammer);
     //ドットの直後に symbolがあるものを集めて.
-    let target_items = lr0_set
-        .iter()
-        .filter(|item| test_symbol_after_dot(&item.right, symbol));
+    let target_items = lr0_set.iter().filter(|item| {
+        if test_symbol_after_dot(&item, symbol) {
+            println!("closure <= {}", item);
+            true
+        } else {
+            false
+        }
+    });
     //ドットを一つすすめる.
     let i: Vec<LR0Item<NT, T>> = target_items
-        .map(|item| {
-            let dot_pos = item
-                .right
-                .iter()
-                .enumerate()
-                .skip_while(|dot_or_alphabet| match dot_or_alphabet.1 {
-                    DotOrSymbol::Dot => false,
-                    _ => true,
-                })
-                .next()
-                .unwrap()
-                .0;
-            let mut right = item.right.clone();
-            right.swap(dot_pos, dot_pos + 1);
-            LR0Item {
-                left: item.left.clone(),
-                right,
-            }
+        .map(|item| LR0Item {
+            left: item.left.clone(),
+            right: item.right.clone(),
+            dot_pos: item.dot_pos + 1,
         })
         .collect();
     if !i.is_empty() {
@@ -311,18 +281,17 @@ where
         let mut y = vec![];
         //状態遷移表
         let mut delta = BTreeMap::new();
+        let mut cnt = 0;
         while !x.is_empty() {
             let i = x.remove(0);
             y.push(i.clone());
+            println!("trying to generate next states for I{}={:?}", cnt, i);
             symbols.into_iter().for_each(|symbol| {
                 println!("/////////////////////////////////////");
-                if let Some(_) = i
-                    .iter()
-                    .find(|item| test_symbol_after_dot(&item.right, symbol))
-                {
+                if let Some(_) = i.iter().find(|item| test_symbol_after_dot(&item, symbol)) {
                     println!(
-                        "I' = Goto({:?},{})",
-                        i,
+                        "I' = Goto(I{},{})",
+                        cnt,
                         match symbol {
                             Symbol::Term(t) => {
                                 format!("{:?}", t)
@@ -337,7 +306,11 @@ where
                     if !i_dash.is_empty() {
                         if !y.contains(&i_dash) & !x.contains(&i_dash) {
                             x.push(i_dash.clone());
+                            cnt += 1;
+                        } else {
+                            println!("same goto set geenrated before.");
                         }
+                        //状態遷移関数に追加
                         delta.insert((i.clone(), symbol.clone()), i_dash);
                     }
                 } else {
@@ -415,7 +388,7 @@ mod test {
     use crate::bnf::{Expr, Grammer, Symbol};
     use crate::item_set::{
         compile_canonical_automaton_to_dot, generate_canonical_automaton, generate_goto_set,
-        generate_lr0_item_closure, DotOrSymbol, LR0Item,
+        generate_lr0_item_closure, LR0Item,
     };
     use NonTerm::{E, S, T};
     use Symbol::NonTerm as NT;
@@ -503,11 +476,11 @@ mod test {
         let closure_target = LR0Item {
             left: NT::E,
             right: vec![
-                DotOrSymbol::Symbol(Symbol::NonTerm(NT::E)),
-                DotOrSymbol::Symbol(Symbol::Term('+')),
-                DotOrSymbol::Dot,
-                DotOrSymbol::Symbol(Symbol::NonTerm(NT::T)),
+                (Symbol::NonTerm(NT::E)),
+                (Symbol::Term('+')),
+                (Symbol::NonTerm(NT::T)),
             ],
+            dot_pos: 2,
         };
         let lr0_items = generate_lr0_item_set(&grammer);
         let item_closure = generate_lr0_item_closure(&lr0_items, &[closure_target]);
@@ -566,11 +539,11 @@ mod test {
             &[LR0Item {
                 left: NT::T,
                 right: vec![
-                    DotOrSymbol::Symbol(Symbol::NonTerm(NT::T)),
-                    DotOrSymbol::Dot,
-                    DotOrSymbol::Symbol(Symbol::Term('*')),
-                    DotOrSymbol::Symbol(Symbol::NonTerm(NT::F)),
+                    (Symbol::NonTerm(NT::T)),
+                    (Symbol::Term('*')),
+                    (Symbol::NonTerm(NT::F)),
                 ],
+                dot_pos: 1,
             }],
             &Symbol::Term('*'),
         );
