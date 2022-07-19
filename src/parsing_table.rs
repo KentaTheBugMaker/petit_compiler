@@ -90,11 +90,7 @@ where
             } else if reduce_state.len() == 1 && state.len() > 1 {
                 println!(" Shift/Reduce conflict detected.");
                 true
-            } else if reduce_state.len() == 1 {
-                true
-            } else {
-                false
-            }
+            } else { reduce_state.len() == 1 }
         })
         .collect();
     let mut rule_table = vec![];
@@ -115,12 +111,10 @@ where
             Symbol::Term(t) => {
                 let rule = if to.contains(&accept_rule) {
                     ActionKind::Accept
+                } else if !to.is_empty() {
+                    ActionKind::Shift(*state_number_table.get(to).unwrap())
                 } else {
-                    if !to.is_empty() {
-                        ActionKind::Shift(*state_number_table.get(to).unwrap())
-                    } else {
-                        ActionKind::Error
-                    }
+                    ActionKind::Error
                 };
                 let action_entry = ((*state_number_table.get(from).unwrap(), t.clone()), rule);
                 action_table.insert(action_entry.0, action_entry.1);
@@ -187,7 +181,7 @@ where
                 for nonterm in nonterms.iter().take(ln) {
                     buffer += &format!(" {:?} &", nonterm);
                 }
-                buffer += &format!(" {:?}", nonterms.iter().skip(ln).next().unwrap());
+                buffer += &format!(" {:?}", nonterms.iter().nth(ln).unwrap());
                 buffer
             }
         );
@@ -212,7 +206,7 @@ where
                         }
                     }
                 } else {
-                    row.push_str("&")
+                    row.push('&')
                 }
             }
             row.push('&');
@@ -221,7 +215,7 @@ where
                 if let Some(state) = self.goto_table.get(&(state_number, (*nt).clone())) {
                     write!(&mut row, "& $ q_{{{}}} $ ", state).unwrap();
                 } else {
-                    row.push_str("&")
+                    row.push('&')
                 }
             }
             row.push_str(r"\\\hline");

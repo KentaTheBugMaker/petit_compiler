@@ -95,8 +95,7 @@ fn main() {
     let (states, goto) = generate_canonical_automaton(
         &grammer,
         NT::Sdash,
-        &vec![
-            Symbol::NonTerm(NT::Sdash),
+        &[Symbol::NonTerm(NT::Sdash),
             Symbol::NonTerm(NT::S),
             Symbol::NonTerm(NT::E),
             Symbol::NonTerm(NT::P),
@@ -104,8 +103,7 @@ fn main() {
             Symbol::Term(T::Plus),
             Symbol::Term(T::LP),
             Symbol::Term(T::RP),
-            Symbol::Term(T::EOF),
-        ],
+            Symbol::Term(T::EOF)],
     );
     println!(
         "{}",
@@ -115,7 +113,7 @@ fn main() {
     let parser =
         canonical_automaton_to_lr0_parser((&states, &goto), NT::Sdash, NT::S, T::EOF, &terms);
 
-    println!("");
+    println!();
     let nonterms = [NT::S, NT::E, NT::P];
     parser.export_as_latex_src(&terms, &nonterms);
 
@@ -136,6 +134,6 @@ fn main() {
         T::RP,
         T::EOF,
     ]);
-    println!("");
+    println!();
     parser.export_parsing_as_latex_src();
 }

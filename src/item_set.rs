@@ -33,9 +33,7 @@ where
             .right
             .iter()
             .map(|symbol| {
-                format!(
-                    "{}",
-                    match symbol {
+                match symbol {
                         Symbol::Term(t) => {
                             format!("{:?}", t)
                         }
@@ -43,7 +41,6 @@ where
                             format!("{:?}", nt)
                         }
                     }
-                )
             })
             .collect();
         symbols.insert(self.dot_pos, "・".to_owned());
@@ -63,9 +60,7 @@ where
             .right
             .iter()
             .map(|symbol| {
-                format!(
-                    "{}",
-                    match symbol {
+                match symbol {
                         Symbol::Term(t) => {
                             format!("{:?}", t)
                         }
@@ -73,7 +68,6 @@ where
                             format!("{:?}", nt)
                         }
                     }
-                )
             })
             .collect();
         symbols.insert(self.dot_pos, "\u{00b7}".to_owned());
@@ -201,7 +195,7 @@ where
     let full_set = generate_lr0_item_set(grammer);
     //ドットの直後に symbolがあるものを集めて.
     let target_items = lr0_set.iter().filter(|item| {
-        if test_symbol_after_dot(&item, symbol) {
+        if test_symbol_after_dot(item, symbol) {
             println!("closure <= {}", item);
             true
         } else {
@@ -254,9 +248,9 @@ where
             let i = x.remove(0);
             y.push(i.clone());
             println!("trying to generate next states for I{}={:?}", cnt, i);
-            symbols.into_iter().for_each(|symbol| {
+            symbols.iter().for_each(|symbol| {
                 println!("/////////////////////////////////////");
-                if let Some(_) = i.iter().find(|item| test_symbol_after_dot(&item, symbol)) {
+                if i.iter().find(|item| test_symbol_after_dot(item, symbol)).is_some() {
                     println!(
                         "I' = Goto(I{},{})",
                         cnt,
