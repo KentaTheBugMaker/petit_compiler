@@ -149,7 +149,7 @@ where
     NT: Clone + Eq + Ord + Debug,
     T: Clone + Eq + Ord + Debug,
 {
-    /* pretty print */
+
     pub fn export_as_latex_src(&self, terms: &[T], nonterms: &[NT])
     where
         NT: Ord + Eq + Clone + Debug,
@@ -229,11 +229,13 @@ where
         }
         println!(r"\end{{tabular}}")
     }
+
     pub fn reset(&mut self) {
         self.cursor = 0;
         self.input.clear();
         self.stack = vec![0];
     }
+
     pub fn input(self, input: Vec<T>) -> Self {
         Self {
             input,

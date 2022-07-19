@@ -10,7 +10,6 @@ use std::fmt::Debug;
 
 mod bnf;
 mod first_set;
-mod follow_set;
 mod item_set;
 mod nullable_set;
 mod parsing_table;
