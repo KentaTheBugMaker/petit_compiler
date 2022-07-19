@@ -10,10 +10,6 @@ pub struct ItemClosure0<NT, T>(pub BTreeSet<LR0Item<NT, T>>)
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug;
-pub struct ItemClosure1<NT, T>(pub BTreeSet<LR1Item<NT, T>>)
-where
-    NT: Ord + Eq + Clone,
-    T: Ord + Eq + Clone;
 
 #[derive(Ord, PartialOrd, PartialEq, Eq, Clone)]
 pub struct LR0Item<NT, T>
@@ -80,37 +76,9 @@ where
                 )
             })
             .collect();
-        symbols.insert(self.dot_pos, "・".to_owned());
+        symbols.insert(self.dot_pos, "\u{00b7}".to_owned());
         let right = symbols.concat();
         write!(f, "{}", right)
-    }
-}
-
-#[derive(Ord, PartialOrd, PartialEq, Eq, Clone)]
-pub struct LR1Item<NT, T>
-where
-    NT: Ord + Clone + Eq,
-    T: Ord + Eq + Clone,
-{
-    pub left: NT,
-    pub right: Vec<Symbol<NT, T>>,
-    pub lookahead: T,
-    pub dot_pos: usize,
-}
-
-impl<NT, T> Into<LR1Item<NT, T>> for (LR0Item<NT, T>, T)
-where
-    NT: Clone + Eq + Ord + Debug,
-    T: Clone + Eq + Ord + Debug,
-{
-    fn into(self) -> LR1Item<NT, T> {
-        let (lr0, la) = self;
-        LR1Item {
-            left: lr0.left,
-            right: lr0.right,
-            lookahead: la,
-            dot_pos: lr0.dot_pos,
-        }
     }
 }
 
@@ -345,41 +313,87 @@ where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
 {
-    let node_with_id: BTreeMap<Vec<LR0Item<NT, T>>, usize> = automaton
+    let node_with_id: BTreeMap<Vec<LR0Item<NT, T>>, (usize, bool)> = automaton
         .0
         .iter()
         .enumerate()
-        .map(|(id, set)| (set.clone(), id))
+        .map(|(id, set)| {
+            let is_accept = set
+                .iter()
+                .find(|item| item.dot_pos == item.right.len())
+                .is_some();
+            (set.clone(), (id, is_accept))
+        })
         .collect();
     println!("nodes = {}", node_with_id.len());
     format!(
         "digraph {} {{
-{}}}",
+            /*Nodes*/
+            {}
+            /*Relations*/
+            {}
+        }}",
         automaton_name,
         {
             let mut buffer = String::new();
-            let shifts = automaton
-                .1
-                .iter()
-                .map(|((from, symbol), to)| (node_with_id.get(from), symbol, node_with_id.get(to)));
-            for shift in shifts {
-                buffer.push_str(&format!(
-                    "I{} -> I{} [{}];\n",
-                    shift.0.unwrap(),
-                    shift.2.unwrap(),
-                    match shift.1 {
+            for node in node_with_id.iter() {
+                let b = node.0;
+                let node_id = node.1 .0;
+                let is_accept_node = node.1 .1;
+                buffer += &format!(
+                    "Node{} [label=\"{}\" shape=\"{}\"];\n",
+                    node_id,
+                    {
+                        /*
+                        format LR(0) items.
+                        */
+                        let mut buffer = String::new();
+                        if let Some((last, left)) = b.split_last() {
+                            for item in left {
+                                buffer += &format!("{}\n", item);
+                            }
+                            buffer += &format!("{}", last);
+                        }
+                        buffer
+                    },
+                    if is_accept_node {
+                        "doublecircle"
+                    } else {
+                        "rectangle"
+                    }
+                );
+            }
+            buffer
+        },
+        {
+            let mut buffer = String::new();
+            for ((from, symbol), to) in automaton.1.iter() {
+                buffer += &format!(
+                    "Node{} -> Node{} [label={:?}];\n",
+                    node_with_id.get(from).unwrap().0,
+                    node_with_id.get(to).unwrap().0,
+                    match symbol {
                         Symbol::Term(t) => {
-                            format!("label=\"{:?}\", style=solid", t)
+                            format!("{:?}", t)
                         }
                         Symbol::NonTerm(nt) => {
-                            format!("label=\"{:?}\", style=bold", nt)
+                            format!("{:?}", nt)
                         }
-                    },
-                ));
+                    }
+                );
             }
+
             buffer
         }
     )
+}
+
+pub trait IntoSymbolKind<NT, T, SymbolKind>
+where
+    NT: Ord + Clone,
+    T: Ord + Clone,
+{
+    fn into_symbol_kind(symbol: &Symbol<NT, T>) -> SymbolKind;
 }
 
 #[cfg(test)]
