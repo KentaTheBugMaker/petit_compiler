@@ -33,18 +33,14 @@ where
 
         for rule in &grammer.rules {
             let sup = &rule.left;
-            let first_non_null = rule
-                .right
-                .iter()
-                .skip_while(|symbol| {
-                    match symbol {
-                        //終端記号なのでヌルになることはない
-                        Symbol::Term(_) => false,
-                        //ヌル集合にないならばこれ目当てのものになる.
-                        Symbol::NonTerm(nt) => nullable_set.contains(nt),
-                    }
-                })
-                .next();
+            let first_non_null = rule.right.iter().find(|symbol| {
+                match symbol {
+                    //終端記号なのでヌルになることはない
+                    Symbol::Term(_) => false,
+                    //ヌル集合にないならばこれ目当てのものになる.
+                    Symbol::NonTerm(nt) => nullable_set.contains(nt),
+                }
+            });
 
             if let Some(sub) = first_non_null {
                 if Symbol::NonTerm(sup.clone()) != sub.clone() {

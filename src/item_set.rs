@@ -32,15 +32,13 @@ where
         let mut symbols: Vec<String> = self
             .right
             .iter()
-            .map(|symbol| {
-                match symbol {
-                        Symbol::Term(t) => {
-                            format!("{:?}", t)
-                        }
-                        Symbol::NonTerm(nt) => {
-                            format!("{:?}", nt)
-                        }
-                    }
+            .map(|symbol| match symbol {
+                Symbol::Term(t) => {
+                    format!("{:?}", t)
+                }
+                Symbol::NonTerm(nt) => {
+                    format!("{:?}", nt)
+                }
             })
             .collect();
         symbols.insert(self.dot_pos, "・".to_owned());
@@ -59,15 +57,13 @@ where
         let mut symbols: Vec<String> = self
             .right
             .iter()
-            .map(|symbol| {
-                match symbol {
-                        Symbol::Term(t) => {
-                            format!("{:?}", t)
-                        }
-                        Symbol::NonTerm(nt) => {
-                            format!("{:?}", nt)
-                        }
-                    }
+            .map(|symbol| match symbol {
+                Symbol::Term(t) => {
+                    format!("{:?}", t)
+                }
+                Symbol::NonTerm(nt) => {
+                    format!("{:?}", nt)
+                }
             })
             .collect();
         symbols.insert(self.dot_pos, "\u{00b7}".to_owned());
@@ -174,9 +170,10 @@ where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
 {
-    match item.right.get(item.dot_pos) {
-        Some(sym) if sym == symbol => true,
-        _ => (false),
+    if let Some(sym) = item.right.get(item.dot_pos) {
+        sym == symbol
+    } else {
+        false
     }
 }
 
@@ -250,7 +247,7 @@ where
             println!("trying to generate next states for I{}={:?}", cnt, i);
             symbols.iter().for_each(|symbol| {
                 println!("/////////////////////////////////////");
-                if i.iter().find(|item| test_symbol_after_dot(item, symbol)).is_some() {
+                if i.iter().any(|item| test_symbol_after_dot(item, symbol)) {
                     println!(
                         "I' = Goto(I{},{})",
                         cnt,
@@ -312,10 +309,7 @@ where
         .iter()
         .enumerate()
         .map(|(id, set)| {
-            let is_accept = set
-                .iter()
-                .find(|item| item.dot_pos == item.right.len())
-                .is_some();
+            let is_accept = set.iter().any(|item| item.dot_pos == item.right.len());
             (set.clone(), (id, is_accept))
         })
         .collect();
@@ -338,15 +332,16 @@ where
                     "Node{} [label=\"{}\" shape=\"{}\"];\n",
                     node_id,
                     {
+                        use std::fmt::Write;
                         /*
                         format LR(0) items.
                         */
                         let mut buffer = String::new();
                         if let Some((last, left)) = b.split_last() {
-                            for item in left {
-                                buffer += &format!("{}\n", item);
-                            }
-                            buffer += &format!("{}", last);
+                            left.iter().for_each(|item| {
+                                write!(&mut buffer, "{}\n", item).unwrap();
+                            });
+                            write!(&mut buffer, "{}", last).unwrap();
                         }
                         buffer
                     },
@@ -360,9 +355,11 @@ where
             buffer
         },
         {
+            use std::fmt::Write;
             let mut buffer = String::new();
             for ((from, symbol), to) in automaton.1.iter() {
-                buffer += &format!(
+                write!(
+                    &mut buffer,
                     "Node{} -> Node{} [label={:?}];\n",
                     node_with_id.get(from).unwrap().0,
                     node_with_id.get(to).unwrap().0,
@@ -374,7 +371,8 @@ where
                             format!("{:?}", nt)
                         }
                     }
-                );
+                )
+                .unwrap();
             }
 
             buffer

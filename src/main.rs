@@ -36,7 +36,7 @@ enum T {
     Plus,
     LP,
     RP,
-    EOF,
+    Eof,
 }
 
 impl Debug for T {
@@ -46,7 +46,7 @@ impl Debug for T {
             Self::Plus => write!(f, "+"),
             Self::LP => write!(f, "("),
             Self::RP => write!(f, ")"),
-            Self::EOF => write!(f, "$"),
+            Self::Eof => write!(f, "$"),
         }
     }
 }
@@ -56,7 +56,7 @@ fn main() {
         rules: vec![
             Expr {
                 left: NT::Sdash,
-                right: vec![Symbol::NonTerm(NT::S), Symbol::Term(T::EOF)],
+                right: vec![Symbol::NonTerm(NT::S), Symbol::Term(T::Eof)],
             },
             Expr {
                 left: NT::S,
@@ -95,7 +95,8 @@ fn main() {
     let (states, goto) = generate_canonical_automaton(
         &grammer,
         NT::Sdash,
-        &[Symbol::NonTerm(NT::Sdash),
+        &[
+            Symbol::NonTerm(NT::Sdash),
             Symbol::NonTerm(NT::S),
             Symbol::NonTerm(NT::E),
             Symbol::NonTerm(NT::P),
@@ -103,15 +104,16 @@ fn main() {
             Symbol::Term(T::Plus),
             Symbol::Term(T::LP),
             Symbol::Term(T::RP),
-            Symbol::Term(T::EOF)],
+            Symbol::Term(T::Eof),
+        ],
     );
     println!(
         "{}",
         compile_canonical_automaton_to_dot((&states, &goto), "")
     );
-    let terms = [T::One, T::Plus, T::LP, T::RP, T::EOF];
+    let terms = [T::One, T::Plus, T::LP, T::RP, T::Eof];
     let parser =
-        canonical_automaton_to_lr0_parser((&states, &goto), NT::Sdash, NT::S, T::EOF, &terms);
+        canonical_automaton_to_lr0_parser((&states, &goto), NT::Sdash, NT::S, T::Eof, &terms);
 
     println!();
     let nonterms = [NT::S, NT::E, NT::P];
@@ -132,7 +134,7 @@ fn main() {
         T::One,
         T::RP,
         T::RP,
-        T::EOF,
+        T::Eof,
     ]);
     println!();
     parser.export_parsing_as_latex_src();

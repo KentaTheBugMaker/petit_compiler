@@ -81,7 +81,7 @@ where
             let reduce_state: BTreeSet<_> = state
                 .iter()
                 .filter(|lr0item| {
-                    lr0item.dot_pos == lr0item.right.len() && (*lr0item.clone() != accept_rule)
+                    lr0item.dot_pos == lr0item.right.len() && ((*lr0item).clone() != accept_rule)
                 })
                 .collect();
             if reduce_state.len() > 1 {
@@ -90,7 +90,9 @@ where
             } else if reduce_state.len() == 1 && state.len() > 1 {
                 println!(" Shift/Reduce conflict detected.");
                 true
-            } else { reduce_state.len() == 1 }
+            } else {
+                reduce_state.len() == 1
+            }
         })
         .collect();
     let mut rule_table = vec![];
@@ -143,7 +145,6 @@ where
     NT: Clone + Eq + Ord + Debug,
     T: Clone + Eq + Ord + Debug,
 {
-
     pub fn export_as_latex_src(&self, terms: &[T], nonterms: &[NT])
     where
         NT: Ord + Eq + Clone + Debug,
@@ -152,10 +153,12 @@ where
         let terms: BTreeSet<_> = terms.iter().collect();
         let nonterms: BTreeSet<_> = nonterms.iter().collect();
 
-        println!("generating LaTeX source file.
+        println!(
+            "generating LaTeX source file.
         You can insert this generated snippet to table enviroment.
         But may not compile due to escape characters. 
-        \n");
+        \n"
+        );
 
         println!(
             "\\begin{{tabular}}{{{}}}",
@@ -170,18 +173,21 @@ where
             " &{}  &{} \\\\",
             {
                 let mut buffer = String::new();
-                for term in terms.iter() {
-                    buffer += &format!(" {:?} &", term);
-                }
+                use std::fmt::Write;
+                terms.iter().for_each(|term| {
+                    write!(&mut buffer, " {:?} &", term).unwrap();
+                });
                 buffer
             },
             {
+                use std::fmt::Write;
                 let mut buffer = String::new();
                 let ln = nonterms.len() - 1;
-                for nonterm in nonterms.iter().take(ln) {
-                    buffer += &format!(" {:?} &", nonterm);
-                }
-                buffer += &format!(" {:?}", nonterms.iter().nth(ln).unwrap());
+                nonterms.iter().take(ln).for_each(|nonterm| {
+                    write!(&mut buffer, "{:?} &", nonterm).unwrap();
+                });
+                write!(&mut buffer, " {:?}", nonterms.iter().nth(ln).unwrap()).unwrap();
+
                 buffer
             }
         );
@@ -241,8 +247,8 @@ where
         }
     }
 
-    pub fn export_parsing_as_latex_src(&mut self){
-        println!("generating step by step parsing for {:?}.\n",self.input);
+    pub fn export_parsing_as_latex_src(&mut self) {
+        println!("generating step by step parsing for {:?}.\n", self.input);
 
         println!("\\begin{{tabular}}{{lllll}}");
         println!(r" & &remain input & stack & action \\ \hline");
@@ -256,7 +262,6 @@ where
                 if let Some(action) = self.action_table.get(&(q, x.to_owned())) {
                     match action {
                         ActionKind::Accept => {
-                            
                             println!(
                                 "{} & & {} & {} & Accept \\\\ \\hline ",
                                 step_count,
@@ -295,7 +300,7 @@ where
                                 panic!("can't get r{} from rule_table", rule_number);
                             }
                         }
-    
+
                         ActionKind::Shift(next_state) => {
                             println!(
                                 "{} & & {} & {} & Shift($ q_{{{}}} $) \\\\ \\hline",
@@ -311,7 +316,7 @@ where
                             eprintln!("error detected due to invalid input");
                         }
                     }
-                    step_count+=1;
+                    step_count += 1;
                 } else {
                     eprintln!("No action for ({},{:?})", q, x);
                 }
@@ -382,24 +387,24 @@ where
             }
         }
     }
-    fn dump_remain_input(&self)->String{
+    fn dump_remain_input(&self) -> String {
         use std::fmt::Write;
-        let mut buffer =String::new();
-        for x in self.input.iter().skip(self.cursor){
-            write!(&mut buffer,"{:?}",x).unwrap();
+        let mut buffer = String::new();
+        for x in self.input.iter().skip(self.cursor) {
+            write!(&mut buffer, "{:?}", x).unwrap();
         }
         buffer
     }
-    fn dump_stack_as_latex_src(&self)->String{
+    fn dump_stack_as_latex_src(&self) -> String {
         use std::fmt::Write;
 
-        let mut buffer =String::new();
+        let mut buffer = String::new();
         buffer.push_str("$ ");
-        let (last,left)=self.stack.split_last().unwrap();
+        let (last, left) = self.stack.split_last().unwrap();
         for state in left {
-            write!(&mut buffer,"q_{{{}}}",state).unwrap();
+            write!(&mut buffer, "q_{{{}}}", state).unwrap();
         }
-        write!(&mut buffer,"q_{{{}}}\\leftarrow",last).unwrap();
+        write!(&mut buffer, "q_{{{}}}\\leftarrow", last).unwrap();
         buffer.push_str(" $");
         buffer
     }
