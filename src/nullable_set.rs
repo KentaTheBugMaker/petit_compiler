@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::bnf::Grammer;
 
+#[allow(dead_code)]
 pub fn generate_null_set<NT, T>(bnf: &Grammer<NT, T>) -> BTreeSet<NT>
 where
     T: Ord + Eq + Clone,

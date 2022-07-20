@@ -1,9 +1,10 @@
+use bnf::IntoKind;
 use item_set::compile_canonical_automaton_to_dot;
 
 use crate::{
     bnf::{Expr, Grammer, Symbol},
-    item_set::generate_canonical_automaton,
-    parsing_table::canonical_automaton_to_lr0_parser,
+    item_set::{generate_canonical_automaton, LR0Item},
+    parsing_table::{canonical_automaton_to_lr0_parser, ValueStackSymbol},
 };
 
 use std::fmt::Debug;
@@ -20,6 +21,7 @@ enum NT {
     E,
     P,
 }
+
 impl Debug for NT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -39,6 +41,12 @@ enum T {
     Eof,
 }
 
+impl IntoKind<T> for T {
+    fn into_kind(&self) -> T {
+        self.clone()
+    }
+}
+
 impl Debug for T {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -47,6 +55,38 @@ impl Debug for T {
             Self::LP => write!(f, "("),
             Self::RP => write!(f, ")"),
             Self::Eof => write!(f, "$"),
+        }
+    }
+}
+
+//This is AST.
+#[derive(Clone, Debug)]
+enum S {
+    E(E),
+}
+#[derive(Clone, Debug)]
+enum E {
+    EPlusP(Box<E>, Box<P>),
+    P(Box<P>),
+}
+
+#[derive(Clone, Debug)]
+enum P {
+    Expression(Box<E>),
+    One,
+}
+#[derive(Clone, Debug)]
+enum NTV {
+    S(S),
+    E(E),
+    P(P),
+}
+impl IntoKind<NT> for NTV {
+    fn into_kind(&self) -> NT {
+        match self {
+            NTV::S(_) => NT::S,
+            NTV::E(_) => NT::E,
+            NTV::P(_) => NT::P,
         }
     }
 }
@@ -92,6 +132,95 @@ fn main() {
             },
         ],
     };
+
+    let functions = [
+        (
+            LR0Item {
+                left: NT::S,
+                right: vec![
+                    Symbol::Term(T::LP),
+                    Symbol::NonTerm(NT::E),
+                    Symbol::Term(T::RP),
+                ],
+                dot_pos: 3,
+            },
+            Box::new(|args: &[ValueStackSymbol<NTV, T>]| -> NTV {
+                if let ValueStackSymbol::NonTerm(NTV::E(e)) = &args[1] {
+                    NTV::S(S::E(e.clone()))
+                } else {
+                    panic!("")
+                }
+            }) as Box<dyn Fn(&[ValueStackSymbol<NTV, T>]) -> NTV>,
+        ),
+        (
+            LR0Item {
+                left: NT::E,
+                right: vec![
+                    Symbol::NonTerm(NT::E),
+                    Symbol::Term(T::Plus),
+                    Symbol::NonTerm(NT::P),
+                ],
+                dot_pos: 3,
+            },
+            Box::new(|args: &[ValueStackSymbol<NTV, T>]| -> NTV {
+                let e = &args[0];
+                let p = &args[2];
+                if let (
+                    ValueStackSymbol::NonTerm(NTV::E(e)),
+                    ValueStackSymbol::NonTerm(NTV::P(p)),
+                ) = (e, p)
+                {
+                    NTV::E(E::EPlusP(Box::new(e.clone()), Box::new(p.clone())))
+                } else {
+                    panic!("")
+                }
+            }) as Box<dyn Fn(&[ValueStackSymbol<NTV, T>]) -> NTV>,
+        ),
+        (
+            LR0Item {
+                left: NT::E,
+                right: vec![Symbol::NonTerm(NT::P)],
+                dot_pos: 1,
+            },
+            Box::new(|args: &[ValueStackSymbol<NTV, T>]| -> NTV {
+                if let ValueStackSymbol::NonTerm(NTV::P(p)) = &args[0] {
+                    NTV::E(E::P(Box::new(p.clone())))
+                } else {
+                    panic!("")
+                }
+            }) as Box<dyn Fn(&[ValueStackSymbol<NTV, T>]) -> NTV>,
+        ),
+        (
+            LR0Item {
+                left: NT::P,
+                right: vec![
+                    Symbol::Term(T::LP),
+                    Symbol::NonTerm(NT::E),
+                    Symbol::Term(T::RP),
+                ],
+                dot_pos: 3,
+            },
+            Box::new(|args: &[ValueStackSymbol<NTV, T>]| -> NTV {
+                if let ValueStackSymbol::NonTerm(NTV::E(e)) = &args[1] {
+                    NTV::P(P::Expression(Box::new(e.clone())))
+                } else {
+                    panic!("")
+                }
+            }) as Box<dyn Fn(&[ValueStackSymbol<NTV, T>]) -> NTV>,
+        ),
+        (
+            LR0Item {
+                left: NT::P,
+                right: vec![Symbol::Term(T::One)],
+                dot_pos: 1,
+            },
+            Box::new(|_: &[ValueStackSymbol<NTV, T>]| -> NTV { NTV::P(P::One) })
+                as Box<dyn Fn(&[ValueStackSymbol<NTV, T>]) -> NTV>,
+        ),
+    ]
+    .into_iter()
+    .collect();
+
     let (states, goto) = generate_canonical_automaton(
         &grammer,
         NT::Sdash,
@@ -122,6 +251,7 @@ fn main() {
     /*
      ((1)+(1+1))
     */
+    let parser = parser.install_reduce_action(functions);
     let mut parser = parser.input(vec![
         T::LP,
         T::LP,
@@ -138,4 +268,5 @@ fn main() {
     ]);
     println!();
     parser.export_parsing_as_latex_src();
+    println!("{:#?}", parser.get_syntax_tree());
 }

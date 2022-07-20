@@ -323,16 +323,17 @@ where
         }}",
         automaton_name,
         {
+            use std::fmt::Write;
             let mut buffer = String::new();
             for node in node_with_id.iter() {
                 let b = node.0;
                 let node_id = node.1 .0;
                 let is_accept_node = node.1 .1;
-                buffer += &format!(
+                write!(
+                    &mut buffer,
                     "Node{} [label=\"{}\" shape=\"{}\"];\n",
                     node_id,
                     {
-                        use std::fmt::Write;
                         /*
                         format LR(0) items.
                         */
@@ -350,7 +351,8 @@ where
                     } else {
                         "rectangle"
                     }
-                );
+                )
+                .unwrap();
             }
             buffer
         },

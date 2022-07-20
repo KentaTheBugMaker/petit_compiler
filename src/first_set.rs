@@ -1,6 +1,8 @@
 use crate::bnf::{Grammer, Symbol};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
+
+#[allow(dead_code)]
 pub fn generate_first_set<NT, T>(grammer: &Grammer<NT, T>) -> BTreeMap<Symbol<NT, T>, BTreeSet<T>>
 where
     T: Ord + Eq + Clone + Debug,

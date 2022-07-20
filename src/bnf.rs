@@ -41,3 +41,7 @@ where
 pub trait EOFSupply<T> {
     fn eof() -> T;
 }
+
+pub trait IntoKind<T> {
+    fn into_kind(&self) -> T;
+}

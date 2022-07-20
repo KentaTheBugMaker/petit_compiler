@@ -1,4 +1,4 @@
-use crate::{bnf::Symbol, item_set::LR0Item};
+use crate::{bnf::{Symbol, IntoKind}, item_set::LR0Item};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -12,25 +12,36 @@ enum ActionKind {
     Error,
 }
 
-pub struct LR0Parser<NT, T>
+pub struct LR0Parser<NT, T,NTV,TV>
 where
     NT: Debug + Clone + Eq + Ord,
     T: Debug + Clone + Eq + Ord,
+    NTV:IntoKind<NT>,
+    TV:IntoKind<T>,
 {
-    input: Vec<T>,
-    cursor: usize,
+    input: Vec<TV>,
     // (q,a)->p
     action_table: BTreeMap<(usize, T), ActionKind>,
     goto_table: BTreeMap<(usize, NT), usize>,
     stack: Vec<usize>,
     //rules
     rule_table: Vec<LR0Item<NT, T>>,
+    // value_stack
+    value_stack:Vec<ValueStackSymbol<NTV,TV>>,
+    // reduce_action_table.
+    reduce_action_table:BTreeMap<LR0Item<NT,T>,Box<dyn Fn(&[ValueStackSymbol<NTV,TV>])->NTV>>,
+}
+
+#[derive(Debug)]
+pub enum ValueStackSymbol<NTV,TV>{
+    NonTerm(NTV),
+    Term(TV),
 }
 
 /*
     正準オートマトン　から LR(0)構文解析器を作成する.
 */
-pub fn canonical_automaton_to_lr0_parser<NT, T>(
+pub fn canonical_automaton_to_lr0_parser<NT, T,NTV,TV>(
     automaton: (
         &[Vec<LR0Item<NT, T>>],
         &BTreeMap<(Vec<LR0Item<NT, T>>, Symbol<NT, T>), Vec<LR0Item<NT, T>>>,
@@ -39,10 +50,12 @@ pub fn canonical_automaton_to_lr0_parser<NT, T>(
     start_symbol: NT,
     eof_symbol: T,
     terms: &[T],
-) -> LR0Parser<NT, T>
+) -> LR0Parser<NT, T,NTV,TV>
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
+    NTV:IntoKind<NT>,
+    TV:IntoKind<T>
 {
     //状態番号をつける
 
@@ -132,18 +145,21 @@ where
 
     LR0Parser {
         input: vec![],
-        cursor: 0,
         action_table,
         goto_table,
         stack: vec![*start_state_number],
         rule_table,
+        value_stack: Vec::new(),
+        reduce_action_table: BTreeMap::new()
     }
 }
 
-impl<NT, T> LR0Parser<NT, T>
+impl<NT, T,NTV,TV> LR0Parser<NT, T,NTV,TV>
 where
     NT: Clone + Eq + Ord + Debug,
     T: Clone + Eq + Ord + Debug,
+    NTV:IntoKind<NT>,
+    TV:IntoKind<T>,
 {
     pub fn export_as_latex_src(&self, terms: &[T], nonterms: &[NT])
     where
@@ -229,26 +245,33 @@ where
         }
         println!(r"\end{{tabular}}")
     }
-
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
-        self.cursor = 0;
+        
         self.input.clear();
         self.stack = vec![0];
     }
 
-    pub fn input(self, input: Vec<T>) -> Self {
+    pub fn input(self, input: Vec<TV>) -> Self {
         Self {
             input,
-            cursor: 0,
+            
             action_table: self.action_table,
             goto_table: self.goto_table,
             stack: self.stack,
             rule_table: self.rule_table,
+            value_stack: Vec::new(),
+            reduce_action_table: self.reduce_action_table,
         }
     }
 
+    pub fn install_reduce_action(self,functions:BTreeMap<LR0Item<NT,T>,Box<dyn Fn(&[ValueStackSymbol<NTV,TV>])->NTV>>)->Self{
+       println!("installed for {:?}",functions.keys());
+        Self{ input: self.input, action_table: self.action_table, goto_table: self.goto_table, stack: self.stack, rule_table: self.rule_table, value_stack: self.value_stack, reduce_action_table: functions }
+    }
+
     pub fn export_parsing_as_latex_src(&mut self) {
-        println!("generating step by step parsing for {:?}.\n", self.input);
+        println!("generating step by step parsing for {:?}.\n", self.input.iter().map(|x|{x.into_kind()}).collect::<Vec<_>>());
 
         println!("\\begin{{tabular}}{{lllll}}");
         println!(r" & &remain input & stack & action \\ \hline");
@@ -256,10 +279,10 @@ where
         let mut step_count = 1;
 
         loop {
-            if let Some(x) = self.input.get(self.cursor) {
+            if let Some(x) = self.input.get(0) {
                 let top_index = self.stack.len();
                 let q = *self.stack.get(top_index - 1).unwrap();
-                if let Some(action) = self.action_table.get(&(q, x.to_owned())) {
+                if let Some(action) = self.action_table.get(&(q, x.into_kind())) {
                     match action {
                         ActionKind::Accept => {
                             println!(
@@ -290,6 +313,15 @@ where
                                     let goto_key = (*q, a);
                                     if let Some(q_dash) = self.goto_table.get(&goto_key) {
                                         self.stack.push(*q_dash);
+
+                                        if let Some(function) = self.reduce_action_table.get(lr0item){
+                                            let ln =self.value_stack.len();
+                                            let args=self.value_stack.split_off(ln-lr0item.dot_pos);
+                                            let v=function(&args);
+                                            self.value_stack.push(ValueStackSymbol::NonTerm(v));
+                                        }else{
+                                            panic!("undefined reduce action. for {:?}",lr0item);
+                                        }     
                                     } else {
                                         panic!("({},{:?}) -> ?", q, lr0item.left);
                                     }
@@ -310,7 +342,8 @@ where
                                 next_state
                             );
                             self.stack.push(*next_state);
-                            self.cursor += 1;
+                            let value=self.input.remove(0);
+                            self.value_stack.push(ValueStackSymbol::Term(value));
                         }
                         ActionKind::Error => {
                             eprintln!("error detected due to invalid input");
@@ -318,7 +351,7 @@ where
                     }
                     step_count += 1;
                 } else {
-                    eprintln!("No action for ({},{:?})", q, x);
+                    eprintln!("No action for ({},{:?})", q, x.into_kind());
                 }
             }
         }
@@ -326,75 +359,15 @@ where
         println!("\\end{{tabular}}")
     }
 
-    pub fn step_once(&mut self) {
-        if let Some(x) = self.input.get(self.cursor) {
-            let top_index = self.stack.len();
-            let q = *self.stack.get(top_index - 1).unwrap();
-            if let Some(action) = self.action_table.get(&(q, x.to_owned())) {
-                match action {
-                    ActionKind::Accept => {
-                        println!(
-                            "{:?} {:?} Accept",
-                            self.input.split_at(self.cursor).1,
-                            self.stack,
-                        );
-                    }
-                    ActionKind::Reduce(rule_number) => {
-                        println!(
-                            "{:?} {:?} Reduce(r{})",
-                            self.input.split_at(self.cursor).1,
-                            self.stack,
-                            rule_number
-                        );
-                        if let Some(lr0item) = self.rule_table.get(*rule_number) {
-                            let pops = lr0item.right.len();
-                            for _ in 0..pops {
-                                self.stack.pop();
-                            }
-                            let top_index = self.stack.len() - 1;
-                            if let Some(q) = self.stack.get(top_index) {
-                                let a = lr0item.left.clone();
-                                let goto_key = (*q, a);
-                                if let Some(q_dash) = self.goto_table.get(&goto_key) {
-                                    self.stack.push(*q_dash);
-                                } else {
-                                    panic!("({},{:?}) -> ?", q, lr0item.left);
-                                }
-                            } else {
-                                panic!("stack is empty this is not acceptable.");
-                            }
-                        } else {
-                            panic!("can't get r{} from rule_table", rule_number);
-                        }
-                    }
-
-                    ActionKind::Shift(next_state) => {
-                        println!(
-                            "{:?} {:?} Shift(q{})",
-                            self.input.split_at(self.cursor).1,
-                            self.stack,
-                            next_state
-                        );
-                        self.stack.push(*next_state);
-                        self.cursor += 1;
-                    }
-                    ActionKind::Error => {
-                        eprintln!("error detected due to invalid input");
-                    }
-                }
-            } else {
-                eprintln!("No action for ({},{:?})", q, x);
-            }
-        }
-    }
     fn dump_remain_input(&self) -> String {
         use std::fmt::Write;
         let mut buffer = String::new();
-        for x in self.input.iter().skip(self.cursor) {
+        for x in self.input.iter().map(|tv|{tv.into_kind()}) {
             write!(&mut buffer, "{:?}", x).unwrap();
         }
         buffer
     }
+
     fn dump_stack_as_latex_src(&self) -> String {
         use std::fmt::Write;
 
@@ -408,4 +381,8 @@ where
         buffer.push_str(" $");
         buffer
     }
+
+    pub fn get_syntax_tree(&mut self)->Option<ValueStackSymbol<NTV,TV>>{
+        self.value_stack.pop()
+    } 
 }
