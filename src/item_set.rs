@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
 };
 
-use crate::bnf::{Grammer, Symbol};
+use crate::bnf::{Grammer, IntoKind, ReduceAction, Symbol};
 
 #[derive(Debug)]
 pub struct ItemClosure0<NT, T>(pub BTreeSet<LR0Item<NT, T>>)
@@ -78,10 +78,14 @@ where
 /// * E -> E.+T
 /// * E -> E+.T
 /// * R -> E+T. 完全項
-pub fn generate_lr0_item_set<NT, T>(grammer: &Grammer<NT, T>) -> Vec<LR0Item<NT, T>>
+pub fn generate_lr0_item_set<NT, T, TV, NTV>(
+    grammer: &Grammer<NT, T, NTV, TV>,
+) -> Vec<LR0Item<NT, T>>
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
+    NTV: IntoKind<NT>,
+    TV: IntoKind<T>,
 {
     let mut set = Vec::new();
 
@@ -180,14 +184,16 @@ where
 ///情報系教科書シリーズ　コンパイラ　によれば Goto(Itemset,a)とは次のようにして作ることができる.
 ///
 ///ドットの直後にaがあるものを集めてドット位置を右に一つずらしたもののクロージャをとる.
-pub fn generate_goto_set<NT, T>(
-    grammer: &Grammer<NT, T>,
+pub fn generate_goto_set<NT, T, NTV, TV>(
+    grammer: &Grammer<NT, T, NTV, TV>,
     lr0_set: &[LR0Item<NT, T>],
     symbol: &Symbol<NT, T>,
 ) -> Vec<LR0Item<NT, T>>
 where
     NT: Ord + Eq + Clone + Debug,
     T: Ord + Eq + Clone + Debug,
+    NTV: IntoKind<NT>,
+    TV: IntoKind<T>,
 {
     let full_set = generate_lr0_item_set(grammer);
     //ドットの直後に symbolがあるものを集めて.
@@ -220,19 +226,22 @@ where
 /// * grammer 文法,
 /// * start_symbol 開始記号(左辺のみにあり,OR規則でないこと)
 ///   ``` S -> S' のような形になっている Sのこと. ```
-pub fn generate_canonical_automaton<NT, T>(
-    grammer: &Grammer<NT, T>,
+pub fn generate_canonical_automaton<NT, T, NTV, TV>(
+    grammer: Grammer<NT, T, NTV, TV>,
     start_symbol: NT,
     symbols: &[Symbol<NT, T>],
 ) -> (
     Vec<Vec<LR0Item<NT, T>>>,
     BTreeMap<(Vec<LR0Item<NT, T>>, Symbol<NT, T>), Vec<LR0Item<NT, T>>>,
+    BTreeMap<LR0Item<NT, T>, ReduceAction<NTV, TV>>,
 )
 where
     NT: Ord + Clone + Eq + Debug,
     T: Ord + Clone + Eq + Debug,
+    NTV: IntoKind<NT>,
+    TV: IntoKind<T>,
 {
-    let items = generate_lr0_item_set(grammer);
+    let items = generate_lr0_item_set(&grammer);
     let start_rule = items.iter().find(|item| item.left.clone() == start_symbol);
     if let Some(start_rule) = start_rule {
         let ie = generate_lr0_item_closure(&items, &[start_rule.clone()]);
@@ -260,7 +269,7 @@ where
                             }
                         }
                     );
-                    let i_dash = generate_goto_set(grammer, &i, symbol);
+                    let i_dash = generate_goto_set(&grammer, &i, symbol);
                     println!("I' = {:?}", i_dash);
                     if !i_dash.is_empty() {
                         if !y.contains(&i_dash) & !x.contains(&i_dash) {
@@ -287,9 +296,21 @@ where
                 }
             });
         }
-        (y, delta)
+        let mut reduce_action = BTreeMap::new();
+        let mut rules = grammer.rules;
+        for rule in rules.drain(..) {
+            let lr0_item = LR0Item {
+                left: rule.left,
+                dot_pos: rule.right.len(),
+                right: rule.right,
+            };
+            if let Some(action) = rule.reduce_action {
+                reduce_action.insert(lr0_item, action);
+            }
+        }
+        (y, delta, reduce_action)
     } else {
-        (vec![], BTreeMap::new())
+        (vec![], BTreeMap::new(), BTreeMap::new())
     }
 }
 
@@ -403,31 +424,37 @@ mod test {
     use Symbol::Term;
     #[test]
     fn test_generate_lr0_item_set() {
-        let grammer = Grammer {
+        let grammer: Grammer<NonTerm, char, NonTerm, char> = Grammer {
             rules: vec![
                 Expr {
                     left: S,
                     right: vec![NT(E)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: E,
                     right: vec![NT(T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: E,
                     right: vec![Term('('), NT(E), Term(')')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![Term('n')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![Term('+'), NT(T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![NT(T), Term('+'), Term('n')],
+                    reduce_action: None,
                 },
             ],
         };
@@ -445,7 +472,7 @@ mod test {
             T,
             F,
         }
-        let grammer = Grammer {
+        let grammer: Grammer<NT, char, NT, char> = Grammer {
             rules: vec![
                 Expr {
                     left: NT::E,
@@ -454,10 +481,12 @@ mod test {
                         Symbol::Term('+'),
                         Symbol::NonTerm(NT::T),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::E,
                     right: vec![Symbol::NonTerm(NT::T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
@@ -466,18 +495,22 @@ mod test {
                         Symbol::Term('*'),
                         Symbol::NonTerm(NT::F),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
                     right: vec![Symbol::NonTerm(NT::F)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('i')],
+                    reduce_action: None,
                 },
             ],
         };
@@ -505,7 +538,7 @@ mod test {
             T,
             F,
         }
-        let grammer = Grammer {
+        let grammer: Grammer<NT, char, NT, char> = Grammer {
             rules: vec![
                 Expr {
                     left: NT::E,
@@ -514,10 +547,12 @@ mod test {
                         Symbol::Term('+'),
                         Symbol::NonTerm(NT::T),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::E,
                     right: vec![Symbol::NonTerm(NT::T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
@@ -526,18 +561,22 @@ mod test {
                         Symbol::Term('*'),
                         Symbol::NonTerm(NT::F),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
                     right: vec![Symbol::NonTerm(NT::F)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('i')],
+                    reduce_action: None,
                 },
             ],
         };
@@ -569,11 +608,12 @@ mod test {
             T,
             F,
         }
-        let grammer = Grammer {
+        let grammer: Grammer<NT, char, NT, char> = Grammer {
             rules: vec![
                 Expr {
                     left: NT::S,
                     right: vec![Symbol::NonTerm(NT::E)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::E,
@@ -582,10 +622,12 @@ mod test {
                         Symbol::Term('+'),
                         Symbol::NonTerm(NT::T),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::E,
                     right: vec![Symbol::NonTerm(NT::T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
@@ -594,24 +636,28 @@ mod test {
                         Symbol::Term('*'),
                         Symbol::NonTerm(NT::F),
                     ],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::T,
                     right: vec![Symbol::NonTerm(NT::F)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('('), Symbol::NonTerm(NT::E), Symbol::Term(')')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NT::F,
                     right: vec![Symbol::Term('i')],
+                    reduce_action: None,
                 },
             ],
         };
 
         let canonical_automaton = generate_canonical_automaton(
-            &grammer,
+            grammer,
             NT::S,
             &[
                 Symbol::NonTerm(NT::S),

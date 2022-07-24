@@ -1,4 +1,4 @@
-use crate::{bnf::{Symbol, IntoKind}, item_set::LR0Item};
+use crate::{bnf::{Symbol, IntoKind,  ReduceAction}, item_set::LR0Item};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -29,7 +29,7 @@ where
     // value_stack
     value_stack:Vec<ValueStackSymbol<NTV,TV>>,
     // reduce_action_table.
-    reduce_action_table:BTreeMap<LR0Item<NT,T>,Box<dyn Fn(&[ValueStackSymbol<NTV,TV>])->NTV>>,
+    reduce_action_table:BTreeMap<LR0Item<NT,T>,ReduceAction<NTV,TV>>,
 }
 
 #[derive(Debug)]
@@ -45,6 +45,7 @@ pub fn canonical_automaton_to_lr0_parser<NT, T,NTV,TV>(
     automaton: (
         &[Vec<LR0Item<NT, T>>],
         &BTreeMap<(Vec<LR0Item<NT, T>>, Symbol<NT, T>), Vec<LR0Item<NT, T>>>,
+        BTreeMap<LR0Item<NT,T>,ReduceAction<NTV,TV>>
     ),
     extended_start_symbol: NT,
     start_symbol: NT,
@@ -150,7 +151,7 @@ where
         stack: vec![*start_state_number],
         rule_table,
         value_stack: Vec::new(),
-        reduce_action_table: BTreeMap::new()
+        reduce_action_table: automaton.2
     }
 }
 
@@ -243,7 +244,17 @@ where
             row.push_str(r"\\\hline");
             println!("{}", row);
         }
-        println!(r"\end{{tabular}}")
+        println!(r"\end{{tabular}}");
+
+        // export reduce rules.
+        println!("\\begin{{tabular}}{{ll}}");
+
+        for (number,rule) in self.rule_table.iter().enumerate(){
+            println!("$ r_{{{}}} $ & {} \\\\ \\hline",number,rule);
+        }
+
+        println!("\\end{{tabular}}")
+
     }
     #[allow(dead_code)]
     pub fn reset(&mut self) {
@@ -265,10 +276,6 @@ where
         }
     }
 
-    pub fn install_reduce_action(self,functions:BTreeMap<LR0Item<NT,T>,Box<dyn Fn(&[ValueStackSymbol<NTV,TV>])->NTV>>)->Self{
-       println!("installed for {:?}",functions.keys());
-        Self{ input: self.input, action_table: self.action_table, goto_table: self.goto_table, stack: self.stack, rule_table: self.rule_table, value_stack: self.value_stack, reduce_action_table: functions }
-    }
 
     pub fn export_parsing_as_latex_src(&mut self) {
         println!("generating step by step parsing for {:?}.\n", self.input.iter().map(|x|{x.into_kind()}).collect::<Vec<_>>());
@@ -317,7 +324,7 @@ where
                                         if let Some(function) = self.reduce_action_table.get(lr0item){
                                             let ln =self.value_stack.len();
                                             let args=self.value_stack.split_off(ln-lr0item.dot_pos);
-                                            let v=function(&args);
+                                            let v=function(args);
                                             self.value_stack.push(ValueStackSymbol::NonTerm(v));
                                         }else{
                                             panic!("undefined reduce action. for {:?}",lr0item);

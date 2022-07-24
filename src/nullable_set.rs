@@ -1,12 +1,14 @@
 use std::collections::BTreeSet;
 
-use crate::bnf::Grammer;
+use crate::bnf::{Grammer, IntoKind};
 
 #[allow(dead_code)]
-pub fn generate_null_set<NT, T>(bnf: &Grammer<NT, T>) -> BTreeSet<NT>
+pub fn generate_null_set<NT, T, NTV, TV>(bnf: &Grammer<NT, T, NTV, TV>) -> BTreeSet<NT>
 where
     T: Ord + Eq + Clone,
     NT: Ord + Eq + Clone,
+    NTV: IntoKind<NT>,
+    TV: IntoKind<T>,
 {
     let mut set = BTreeSet::new();
     for rule in &bnf.rules {
@@ -64,19 +66,22 @@ mod test {
 
     #[test]
     fn test_generate_null_set() {
-        let grammer = Grammer {
+        let grammer: Grammer<NonTerm, i32, NonTerm, i32> = Grammer {
             rules: vec![
                 Expr {
                     left: NonTerm::X,
                     right: vec![Symbol::NonTerm(NonTerm::Y), Symbol::Term(0)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NonTerm::Y,
                     right: vec![Symbol::Term(1)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: NonTerm::Y,
                     right: vec![],
+                    reduce_action: None,
                 },
             ],
         };

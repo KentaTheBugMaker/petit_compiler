@@ -1,12 +1,16 @@
-use crate::bnf::{Grammer, Symbol};
+use crate::bnf::{Grammer, IntoKind, Symbol};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 
 #[allow(dead_code)]
-pub fn generate_first_set<NT, T>(grammer: &Grammer<NT, T>) -> BTreeMap<Symbol<NT, T>, BTreeSet<T>>
+pub fn generate_first_set<NT, T, NTV, TV>(
+    grammer: &Grammer<NT, T, NTV, TV>,
+) -> BTreeMap<Symbol<NT, T>, BTreeSet<T>>
 where
     T: Ord + Eq + Clone + Debug,
     NT: Ord + Eq + Clone + Debug,
+    NTV: IntoKind<NT>,
+    TV: IntoKind<T>,
 {
     //First集合
     let mut first_sets = BTreeMap::new();
@@ -87,31 +91,37 @@ mod test {
     use super::generate_first_set;
     #[test]
     fn test_generate_first_set() {
-        let grammer = Grammer {
+        let grammer: Grammer<NonTerm, char, NonTerm, char> = Grammer {
             rules: vec![
                 Expr {
                     left: S,
                     right: vec![NT(E)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: E,
                     right: vec![NT(T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: E,
                     right: vec![Term('('), NT(E), Term(')')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![Term('n')],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![Term('+'), NT(T)],
+                    reduce_action: None,
                 },
                 Expr {
                     left: T,
                     right: vec![NT(T), Term('+'), Term('n')],
+                    reduce_action: None,
                 },
             ],
         };
